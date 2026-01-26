@@ -1,0 +1,8 @@
+Implement a feature to send images and videos. Use the Firebase JS SDK (v11+) to:
+- Upload files to Firebase Storage using uploadBytesResumable to provide a real-time progress bar.
+- Generate a download URL with getDownloadURL and store it in a Firestore message document.
+- Ensure the code handles TypeScript interfaces for message objects (e.g., text?, fileUrl?, fileType).
+- Design the UI with TailwindCSS, including a file preview before sending and an upload progress indicator.
+- Respect the Spark plan limits (5GB storage, 20k daily uploads) and provide optimized Security Rules for the storage bucket."
+
+firechat-af781.firebasestorage.app
