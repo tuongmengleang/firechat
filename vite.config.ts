@@ -4,6 +4,7 @@ import { fileURLToPath, URL } from 'node:url'
 import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
 import tailwindcss from '@tailwindcss/vite'
+// @ts-ignore: vite-plugin-eruda types are missing
 import eruda from 'vite-plugin-eruda'
 
 // https://vite.dev/config/
