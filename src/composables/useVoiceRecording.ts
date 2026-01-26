@@ -1,4 +1,4 @@
-import { ref, computed, onUnmounted, onMounted } from 'vue'
+import { ref, computed, onUnmounted } from 'vue'
 import {
   ref as storageRef,
   uploadBytesResumable,
@@ -53,8 +53,6 @@ export function useVoiceRecording(roomId: string = 'general') {
   let durationInterval: ReturnType<typeof setInterval> | null = null
   let animationFrameId: number | null = null
   let currentUploadTask: UploadTask | null = null
-  let recordingStartTime: number = 0
-  let pausedDuration: number = 0
   let visibilityHandler: (() => void) | null = null
 
   // Resume AudioContext on iOS Safari (required after user gesture)
@@ -193,8 +191,6 @@ export function useVoiceRecording(roomId: string = 'general') {
       recordingState.value.state = 'recording'
       recordingState.value.duration = 0
       recordingState.value.liveWaveform = []
-      recordingStartTime = Date.now()
-      pausedDuration = 0
 
       // Start duration timer
       durationInterval = setInterval(() => {
