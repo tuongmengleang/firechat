@@ -11,6 +11,7 @@
   "dependencies": {
     "cloudinary-core": "^2.14.0",
     "firebase": "^12.8.0",
+    "motion": "^12.29.2",
     "recordrtc": "^5.6.2",
     "vconsole": "^3.15.1",
     "vue": "^3.5.24"
