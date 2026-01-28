@@ -76,3 +76,12 @@ export const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 export const MAX_IMAGES_PER_MESSAGE = 10 // Maximum images per batch send
 export const MAX_VOICE_DURATION = 300 // 5 minutes in seconds
 export const WAVEFORM_SAMPLES = 50 // Number of samples for waveform visualization
+
+// Typing indicator types
+export interface TypingUser {
+  username: string
+  lastTypingAt: number // timestamp in ms
+}
+
+export const TYPING_TIMEOUT = 3000 // ms before typing status expires
+export const TYPING_THROTTLE = 1000 // ms between typing broadcasts

@@ -3,9 +3,11 @@ import { useChat } from '@/composables/useChat'
 import { useAutoScroll } from '@/composables/useAutoScroll'
 import { useFileUpload } from '@/composables/useFileUpload'
 import { useMultipleImageUpload } from '@/composables/useMultipleImageUpload'
+import { useTypingIndicator } from '@/composables/useTypingIndicator'
 import ChatMessage from '@/components/ChatMessage.vue'
 import ChatInput from '@/components/ChatInput.vue'
 import UsernameModal from '@/components/UsernameModal.vue'
+import TypingIndicator from '@/components/TypingIndicator.vue'
 import type { VoiceAttachment } from '@/types/chat'
 
 const STORAGE_KEY = 'firechat_username'
@@ -26,6 +28,35 @@ const {
   uploadImages,
 } = useMultipleImageUpload('general')
 
+// Typing indicator state - managed separately to handle username availability
+const typingText = ref('')
+const hasTypingUsers = ref(false)
+let typingOnInput: (() => void) | null = null
+let typingOnMessageSent: (() => void) | null = null
+
+// Initialize typing indicator when username becomes available
+watch(
+  username,
+  (newUsername) => {
+    if (newUsername) {
+      const indicator = useTypingIndicator('general', newUsername)
+      typingOnInput = indicator.onInput
+      typingOnMessageSent = indicator.onMessageSent
+
+      // Sync reactive state
+      watchEffect(() => {
+        typingText.value = indicator.typingText.value
+        hasTypingUsers.value = indicator.hasTypingUsers.value
+      })
+    }
+  },
+  { immediate: true }
+)
+
+const handleTyping = (): void => {
+  typingOnInput?.()
+}
+
 const setUsername = (name: string): void => {
   username.value = name
   localStorage.setItem(STORAGE_KEY, name)
@@ -45,6 +76,9 @@ const handleImageRemove = (id: string): void => {
 
 const handleSend = async (text: string): Promise<void> => {
   if (!username.value) return
+
+  // Clear typing indicator immediately
+  typingOnMessageSent?.()
 
   try {
     let fileAttachment = null
@@ -80,6 +114,9 @@ const handleSend = async (text: string): Promise<void> => {
 
 const handleVoiceSend = async (voice: VoiceAttachment): Promise<void> => {
   if (!username.value) return
+
+  // Clear typing indicator
+  typingOnMessageSent?.()
 
   try {
     await sendMessage({
@@ -181,6 +218,12 @@ watch(
             :is-own-message="msg.username === username"
           />
         </template>
+
+        <!-- Typing Indicator -->
+        <TypingIndicator
+          :text="typingText"
+          :visible="hasTypingUsers"
+        />
       </div>
     </main>
 
@@ -203,7 +246,7 @@ watch(
     </Transition>
 
     <!-- Input Area -->
-    <div class="flex-shrink-0 max-w-3xl mx-auto w-full">
+    <div class="flex-shrink-0 mx-auto w-full">
       <ChatInput
         :file-preview="filePreview"
         :upload-state="uploadState"
@@ -219,6 +262,7 @@ watch(
         @images-select="handleImagesSelect"
         @image-remove="handleImageRemove"
         @images-upload-cancel="cancelImagesUpload"
+        @typing="handleTyping"
       />
     </div>
   </div>

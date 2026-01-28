@@ -23,6 +23,7 @@ const emit = defineEmits<{
   imagesSelect: [files: FileList]
   imageRemove: [id: string]
   imagesUploadCancel: []
+  typing: []
 }>()
 
 const message = ref('')
@@ -84,6 +85,8 @@ const autoResize = (e: Event): void => {
   const target = e.target as HTMLTextAreaElement
   target.style.height = 'auto'
   target.style.height = `${Math.min(target.scrollHeight, 120)}px`
+  // Emit typing event
+  emit('typing')
 }
 
 const openFilePicker = (): void => {
@@ -157,7 +160,7 @@ const handleAddMoreImages = (): void => {
 
 <template>
   <div
-    class="bg-white border-t border-slate-200 transition-colors"
+    class="w-full bg-white border-t border-slate-200 transition-colors"
     :class="{ 'bg-indigo-50 border-indigo-200': isDragOver }"
     @dragover="handleDragOver"
     @dragleave="handleDragLeave"
