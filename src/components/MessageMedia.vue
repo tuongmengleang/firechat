@@ -1,21 +1,34 @@
 <script setup lang="ts">
 import type { FileAttachment } from '@/types/chat'
+import { usePresignedUrl } from '@/composables/usePresignedUrl'
 
 const props = defineProps<{
   file: FileAttachment
   isOwnMessage: boolean
 }>()
 
-const isLoading = ref(true)
+const { resolvedUrl, isLoading: urlLoading, error: urlError } = usePresignedUrl(() => props.file.url)
+
+const isMediaLoading = ref(true)
 const hasError = ref(false)
 const isFullscreen = ref(false)
 
+// Combined loading state
+const isLoading = computed(() => urlLoading.value || isMediaLoading.value)
+
+// Watch for URL errors
+watch(urlError, (err) => {
+  if (err) {
+    hasError.value = true
+  }
+})
+
 const handleLoad = (): void => {
-  isLoading.value = false
+  isMediaLoading.value = false
 }
 
 const handleError = (): void => {
-  isLoading.value = false
+  isMediaLoading.value = false
   hasError.value = true
 }
 
@@ -75,25 +88,25 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <template v-if="!hasError">
+    <template v-if="!hasError && resolvedUrl">
       <img
         v-if="file.type === 'image'"
-        :src="file.url"
+        :src="resolvedUrl"
         :alt="file.name"
         @load="handleLoad"
         @error="handleError"
         @click="openFullscreen"
         class="max-w-full rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-        :class="{ 'opacity-0': isLoading }"
+        :class="{ 'opacity-0': isMediaLoading }"
       />
       <video
         v-else
-        :src="file.url"
+        :src="resolvedUrl"
         @loadeddata="handleLoad"
         @error="handleError"
         controls
         class="max-w-full rounded-lg"
-        :class="{ 'opacity-0': isLoading }"
+        :class="{ 'opacity-0': isMediaLoading }"
       />
     </template>
   </div>
@@ -118,7 +131,7 @@ onUnmounted(() => {
           </svg>
         </button>
         <img
-          :src="file.url"
+          :src="resolvedUrl"
           :alt="file.name"
           class="max-w-full max-h-full object-contain"
           @click.stop

@@ -26,9 +26,28 @@ export interface FilePreview {
   size: number
 }
 
+export interface ImagePreview {
+  id: string
+  file: File
+  url: string
+  name: string
+  size: number
+  status: 'pending' | 'uploading' | 'completed' | 'error'
+  progress: number
+  error?: string
+}
+
 export interface UploadState {
   isUploading: boolean
   progress: number
+  error: string | null
+}
+
+export interface MultipleUploadState {
+  isUploading: boolean
+  totalProgress: number
+  completedCount: number
+  totalCount: number
   error: string | null
 }
 
@@ -38,6 +57,7 @@ export interface Message {
   username: string
   createdAt: Timestamp
   file?: FileAttachment
+  files?: FileAttachment[]
   voice?: VoiceAttachment
 }
 
@@ -45,6 +65,7 @@ export interface MessageInput {
   text?: string
   username: string
   file?: FileAttachment
+  files?: FileAttachment[]
   voice?: VoiceAttachment
 }
 
@@ -52,5 +73,6 @@ export const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'ima
 export const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/webm']
 export const ALLOWED_AUDIO_TYPES = ['audio/wav', 'audio/webm', 'audio/mp4', 'audio/ogg']
 export const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+export const MAX_IMAGES_PER_MESSAGE = 10 // Maximum images per batch send
 export const MAX_VOICE_DURATION = 300 // 5 minutes in seconds
 export const WAVEFORM_SAMPLES = 50 // Number of samples for waveform visualization

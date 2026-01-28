@@ -44,9 +44,10 @@ export function useChat(roomId: string = 'general', messageLimit: number = 100) 
   const sendMessage = async (input: MessageInput): Promise<void> => {
     const hasText = input.text?.trim()
     const hasFile = input.file
+    const hasFiles = input.files && input.files.length > 0
     const hasVoice = input.voice
 
-    if (!hasText && !hasFile && !hasVoice) return
+    if (!hasText && !hasFile && !hasFiles && !hasVoice) return
 
     error.value = null
     try {
@@ -61,6 +62,10 @@ export function useChat(roomId: string = 'general', messageLimit: number = 100) 
 
       if (hasFile) {
         messageData.file = input.file
+      }
+
+      if (hasFiles) {
+        messageData.files = input.files
       }
 
       if (hasVoice) {

@@ -1,11 +1,5 @@
 import { ref } from 'vue'
-import {
-  ref as storageRef,
-  uploadBytesResumable,
-  getDownloadURL,
-  type UploadTask,
-} from 'firebase/storage'
-import { storage } from '@/config/firebase'
+import { uploadToS3, type UploadProgress } from '@/config/s3'
 import type { FileAttachment, FilePreview, UploadState, FileType } from '@/types/chat'
 import {
   ALLOWED_IMAGE_TYPES,
@@ -21,7 +15,8 @@ export function useFileUpload(roomId: string = 'general') {
     error: null,
   })
 
-  let currentUploadTask: UploadTask | null = null
+  let abortController: AbortController | null = null
+  let isCanceled = false
 
   const getFileType = (mimeType: string): FileType | null => {
     if (ALLOWED_IMAGE_TYPES.includes(mimeType)) return 'image'
@@ -70,9 +65,10 @@ export function useFileUpload(roomId: string = 'general') {
   }
 
   const cancelUpload = (): void => {
-    if (currentUploadTask) {
-      currentUploadTask.cancel()
-      currentUploadTask = null
+    isCanceled = true
+    if (abortController) {
+      abortController.abort()
+      abortController = null
     }
     uploadState.value = {
       isUploading: false,
@@ -87,8 +83,7 @@ export function useFileUpload(roomId: string = 'general') {
     const { file, type } = filePreview.value
     const timestamp = Date.now()
     const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
-    const filePath = `chatRooms/${roomId}/${username}/${timestamp}_${sanitizedName}`
-    const fileRef = storageRef(storage, filePath)
+    const key = `chatRooms/${roomId}/${username}/${timestamp}_${sanitizedName}`
 
     uploadState.value = {
       isUploading: true,
@@ -96,59 +91,61 @@ export function useFileUpload(roomId: string = 'general') {
       error: null,
     }
 
-    return new Promise((resolve, reject) => {
-      currentUploadTask = uploadBytesResumable(fileRef, file)
+    isCanceled = false
+    abortController = new AbortController()
 
-      currentUploadTask.on(
-        'state_changed',
-        (snapshot) => {
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100
-          uploadState.value.progress = Math.round(progress)
-        },
-        (error) => {
-          currentUploadTask = null
-          uploadState.value.isUploading = false
-
-          if (error.code === 'storage/canceled') {
-            uploadState.value.error = 'Upload canceled'
-            resolve(null)
-          } else {
-            uploadState.value.error = 'Upload failed. Please try again.'
-            reject(error)
+    try {
+      const result = await uploadToS3(
+        file,
+        key,
+        file.type,
+        (progress: UploadProgress) => {
+          if (!isCanceled) {
+            uploadState.value.progress = progress.percentage
           }
         },
-        async () => {
-          try {
-            const downloadUrl = await getDownloadURL(currentUploadTask!.snapshot.ref)
-            currentUploadTask = null
-
-            const attachment: FileAttachment = {
-              url: downloadUrl,
-              type,
-              name: file.name,
-              size: file.size,
-              mimeType: file.type,
-            }
-
-            uploadState.value = {
-              isUploading: false,
-              progress: 100,
-              error: null,
-            }
-
-            clearFile()
-            resolve(attachment)
-          } catch (error) {
-            uploadState.value = {
-              isUploading: false,
-              progress: 0,
-              error: 'Failed to get download URL',
-            }
-            reject(error)
-          }
-        }
+        abortController.signal
       )
-    })
+
+      if (isCanceled) {
+        uploadState.value.error = 'Upload canceled'
+        return null
+      }
+
+      const attachment: FileAttachment = {
+        url: result.url,
+        type,
+        name: file.name,
+        size: file.size,
+        mimeType: file.type,
+      }
+
+      uploadState.value = {
+        isUploading: false,
+        progress: 100,
+        error: null,
+      }
+
+      clearFile()
+      return attachment
+    } catch (error) {
+      abortController = null
+      uploadState.value.isUploading = false
+
+      const errorMessage = (error as Error).message || ''
+      const isAbortError = isCanceled ||
+        errorMessage === 'Upload canceled' ||
+        errorMessage.includes('aborted') ||
+        (error as Error).name === 'AbortError'
+
+      if (isAbortError) {
+        uploadState.value.error = 'Upload canceled'
+        return null
+      }
+
+      uploadState.value.error = 'Upload failed. Please try again.'
+      throw error
+    }
   }
 
   return {
