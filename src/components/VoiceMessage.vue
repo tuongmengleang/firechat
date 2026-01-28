@@ -1,21 +1,35 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import type { VoiceAttachment } from '@/types/chat'
+import { usePresignedUrl } from '@/composables/usePresignedUrl'
 
 const props = defineProps<{
   voice: VoiceAttachment
   isOwn?: boolean
 }>()
 
+const { resolvedUrl, isLoading: urlLoading, error: urlError } = usePresignedUrl(() => props.voice.url)
+
 const audioRef = ref<HTMLAudioElement | null>(null)
 const waveformRef = ref<HTMLDivElement | null>(null)
 
 const isPlaying = ref(false)
-const isLoading = ref(true)
+const isAudioLoading = ref(true)
 const currentTime = ref(0)
 const duration = ref(props.voice.duration || 0)
 const playbackSpeed = ref<1 | 1.5 | 2>(1)
 const error = ref<string | null>(null)
+
+// Combined loading state
+const isLoading = computed(() => urlLoading.value || isAudioLoading.value)
+
+// Watch for URL errors
+watch(urlError, (err) => {
+  if (err) {
+    error.value = 'Failed to load audio'
+    isAudioLoading.value = false
+  }
+})
 
 const progress = computed(() => {
   if (duration.value === 0) return 0
@@ -104,7 +118,7 @@ const onLoadedMetadata = (): void => {
       // Fallback to props duration or 0
       duration.value = props.voice.duration || 0
     }
-    isLoading.value = false
+    isAudioLoading.value = false
   }
 }
 
@@ -141,12 +155,12 @@ const onEnded = (): void => {
 }
 
 const onError = (): void => {
-  isLoading.value = false
+  isAudioLoading.value = false
   error.value = 'Failed to load audio'
 }
 
 const onCanPlay = (): void => {
-  isLoading.value = false
+  isAudioLoading.value = false
 }
 
 // Calculate which bars should be highlighted based on progress
@@ -173,8 +187,9 @@ const waveformBars = computed(() => {
   >
     <!-- Hidden audio element -->
     <audio
+      v-if="resolvedUrl"
       ref="audioRef"
-      :src="voice.url"
+      :src="resolvedUrl"
       preload="metadata"
       @loadedmetadata="onLoadedMetadata"
       @durationchange="onDurationChange"

@@ -1,11 +1,5 @@
 import { ref, computed, onUnmounted } from 'vue'
-import {
-  ref as storageRef,
-  uploadBytesResumable,
-  getDownloadURL,
-  type UploadTask,
-} from 'firebase/storage'
-import { storage } from '@/config/firebase'
+import { uploadToS3, type UploadProgress } from '@/config/s3'
 import type { VoiceAttachment } from '@/types/chat'
 import { MAX_VOICE_DURATION, WAVEFORM_SAMPLES } from '@/types/chat'
 import RecordRTC, { StereoAudioRecorder } from 'recordrtc'
@@ -52,7 +46,7 @@ export function useVoiceRecording(roomId: string = 'general') {
   let mediaStream: MediaStream | null = null
   let durationInterval: ReturnType<typeof setInterval> | null = null
   let animationFrameId: number | null = null
-  let currentUploadTask: UploadTask | null = null
+  let isUploadCanceled = false
   let visibilityHandler: (() => void) | null = null
 
   // Resume AudioContext on iOS Safari (required after user gesture)
@@ -386,6 +380,7 @@ export function useVoiceRecording(roomId: string = 'general') {
     recordingState.value.state = 'uploading'
     recordingState.value.uploadProgress = 0
     recordingState.value.error = null
+    isUploadCanceled = false
 
     // Store the recorded duration before it gets reset
     const recordedDuration = recordingState.value.duration
@@ -405,68 +400,53 @@ export function useVoiceRecording(roomId: string = 'general') {
       const timestamp = Date.now()
       // RecordRTC with StereoAudioRecorder outputs WAV
       const extension = 'wav'
-      const filePath = `chatRooms/${roomId}/${username}/voice_${timestamp}.${extension}`
-      const fileRef = storageRef(storage, filePath)
+      const key = `chatRooms/${roomId}/${username}/voice_${timestamp}.${extension}`
 
-      return new Promise((resolve, reject) => {
-        currentUploadTask = uploadBytesResumable(fileRef, audioBlob)
-
-        currentUploadTask.on(
-          'state_changed',
-          (snapshot) => {
-            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100
-            recordingState.value.uploadProgress = Math.round(progress)
-          },
-          (error) => {
-            currentUploadTask = null
-            recordingState.value.state = 'idle'
-
-            if (error.code === 'storage/canceled') {
-              recordingState.value.error = 'Upload canceled'
-              resolve(null)
-            } else {
-              recordingState.value.error = 'Upload failed. Please try again.'
-              reject(error)
-            }
-          },
-          async () => {
-            try {
-              const downloadUrl = await getDownloadURL(currentUploadTask!.snapshot.ref)
-              currentUploadTask = null
-
-              const voiceAttachment: VoiceAttachment = {
-                url: downloadUrl,
-                duration,
-                waveform,
-                mimeType: 'audio/wav',
-                size: audioBlob.size,
-              }
-
-              recordingState.value.state = 'idle'
-              recordingState.value.uploadProgress = 0
-              recordingState.value.duration = 0
-
-              resolve(voiceAttachment)
-            } catch (error) {
-              recordingState.value.state = 'idle'
-              recordingState.value.error = 'Failed to get download URL'
-              reject(error)
-            }
+      const result = await uploadToS3(
+        audioBlob,
+        key,
+        'audio/wav',
+        (progress: UploadProgress) => {
+          if (!isUploadCanceled) {
+            recordingState.value.uploadProgress = progress.percentage
           }
-        )
-      })
+        }
+      )
+
+      if (isUploadCanceled) {
+        recordingState.value.error = 'Upload canceled'
+        recordingState.value.state = 'idle'
+        return null
+      }
+
+      const voiceAttachment: VoiceAttachment = {
+        url: result.url,
+        duration,
+        waveform,
+        mimeType: 'audio/wav',
+        size: audioBlob.size,
+      }
+
+      recordingState.value.state = 'idle'
+      recordingState.value.uploadProgress = 0
+      recordingState.value.duration = 0
+
+      return voiceAttachment
     } catch (error) {
       recordingState.value.state = 'idle'
+
+      if (isUploadCanceled || (error as Error).message === 'Upload canceled') {
+        recordingState.value.error = 'Upload canceled'
+        return null
+      }
+
       recordingState.value.error = 'Failed to process voice message'
       throw error
     }
   }
 
   const cancelUpload = (): void => {
-    if (currentUploadTask) {
-      currentUploadTask.cancel()
-      currentUploadTask = null
-    }
+    isUploadCanceled = true
     recordingState.value.state = 'idle'
     recordingState.value.uploadProgress = 0
   }

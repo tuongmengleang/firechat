@@ -2,6 +2,7 @@
 import { useChat } from '@/composables/useChat'
 import { useAutoScroll } from '@/composables/useAutoScroll'
 import { useFileUpload } from '@/composables/useFileUpload'
+import { useMultipleImageUpload } from '@/composables/useMultipleImageUpload'
 import ChatMessage from '@/components/ChatMessage.vue'
 import ChatInput from '@/components/ChatInput.vue'
 import UsernameModal from '@/components/UsernameModal.vue'
@@ -15,6 +16,15 @@ const messagesContainer = ref<HTMLElement | null>(null)
 const { messages, error, loading, sendMessage } = useChat('general')
 const { isNearBottom, scrollToBottom, scrollToBottomIfNear, onScroll } = useAutoScroll(messagesContainer)
 const { filePreview, uploadState, selectFile, clearFile, cancelUpload, uploadFile } = useFileUpload('general')
+const {
+  imagePreviews,
+  uploadState: multipleUploadState,
+  hasImages,
+  addImages,
+  removeImage,
+  cancelUpload: cancelImagesUpload,
+  uploadImages,
+} = useMultipleImageUpload('general')
 
 const setUsername = (name: string): void => {
   username.value = name
@@ -25,24 +35,42 @@ const handleFileSelect = (file: File): void => {
   selectFile(file)
 }
 
+const handleImagesSelect = (files: FileList): void => {
+  addImages(files)
+}
+
+const handleImageRemove = (id: string): void => {
+  removeImage(id)
+}
+
 const handleSend = async (text: string): Promise<void> => {
   if (!username.value) return
 
   try {
     let fileAttachment = null
+    let filesAttachments = null
 
-    if (filePreview.value) {
+    // Handle multiple images upload
+    if (hasImages.value) {
+      filesAttachments = await uploadImages(username.value)
+      if (filesAttachments.length === 0 && multipleUploadState.value.error) {
+        return
+      }
+    }
+    // Handle single file upload (videos)
+    else if (filePreview.value) {
       fileAttachment = await uploadFile(username.value)
       if (!fileAttachment && uploadState.value.error) {
         return
       }
     }
 
-    if (text || fileAttachment) {
+    if (text || fileAttachment || (filesAttachments && filesAttachments.length > 0)) {
       await sendMessage({
         text: text || undefined,
         username: username.value,
         file: fileAttachment || undefined,
+        files: filesAttachments && filesAttachments.length > 0 ? filesAttachments : undefined,
       })
     }
   } catch {
@@ -63,15 +91,24 @@ const handleVoiceSend = async (voice: VoiceAttachment): Promise<void> => {
   }
 }
 
+const isInitialLoad = ref(true)
+
 watch(
   () => messages.value.length,
-  () => scrollToBottomIfNear(),
+  (newLength, oldLength) => {
+    // On initial load (first batch of messages), use instant scroll
+    if (isInitialLoad.value && newLength > 0) {
+      isInitialLoad.value = false
+      nextTick(() => scrollToBottom('instant'))
+      return
+    }
+    // For subsequent new messages, use smooth scroll if near bottom
+    if (newLength > oldLength) {
+      scrollToBottomIfNear()
+    }
+  },
   { flush: 'post' }
 )
-
-onMounted(() => {
-  nextTick(() => scrollToBottom('instant'))
-})
 </script>
 
 <template>
@@ -92,7 +129,7 @@ onMounted(() => {
             </svg>
           </div>
           <div>
-            <h1 class="font-bold text-lg">FireChat</h1>
+            <h1 class="font-bold text-lg">Susadei</h1>
             <p class="text-xs text-indigo-200">Real-time messaging</p>
           </div>
         </div>
@@ -170,6 +207,8 @@ onMounted(() => {
       <ChatInput
         :file-preview="filePreview"
         :upload-state="uploadState"
+        :image-previews="imagePreviews"
+        :multiple-upload-state="multipleUploadState"
         :username="username || ''"
         room-id="general"
         @send="handleSend"
@@ -177,6 +216,9 @@ onMounted(() => {
         @file-remove="clearFile"
         @upload-cancel="cancelUpload"
         @voice-send="handleVoiceSend"
+        @images-select="handleImagesSelect"
+        @image-remove="handleImageRemove"
+        @images-upload-cancel="cancelImagesUpload"
       />
     </div>
   </div>

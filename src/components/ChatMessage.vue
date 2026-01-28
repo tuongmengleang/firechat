@@ -2,11 +2,24 @@
 import type { Message } from '@/types/chat'
 import MessageMedia from '@/components/MessageMedia.vue'
 import VoiceMessage from '@/components/VoiceMessage.vue'
+import ImageGallery from '@/components/ImageGallery.vue'
+import ImageLightbox from '@/components/ImageLightbox.vue'
 
 const props = defineProps<{
   message: Message
   isOwnMessage: boolean
 }>()
+
+const lightboxOpen = ref(false)
+const lightboxIndex = ref(0)
+
+const hasMultipleFiles = computed(() =>
+  (props.message.files?.length ?? 0) > 0
+)
+
+const imageFiles = computed(() =>
+  props.message.files?.filter(f => f.type === 'image') ?? []
+)
 
 const formattedTime = computed(() => {
   if (!props.message.createdAt?.toDate) return ''
@@ -17,6 +30,15 @@ const formattedTime = computed(() => {
     minute: '2-digit'
   })
 })
+
+const openLightbox = (index: number): void => {
+  lightboxIndex.value = index
+  lightboxOpen.value = true
+}
+
+const closeLightbox = (): void => {
+  lightboxOpen.value = false
+}
 </script>
 
 <template>
@@ -40,8 +62,18 @@ const formattedTime = computed(() => {
         {{ message.username }}
       </p>
 
+      <!-- Multiple images gallery -->
+      <ImageGallery
+        v-if="hasMultipleFiles && imageFiles.length > 0"
+        :files="imageFiles"
+        :is-own-message="isOwnMessage"
+        class="mb-2"
+        @open-lightbox="openLightbox"
+      />
+
+      <!-- Single file (legacy support) -->
       <MessageMedia
-        v-if="message.file"
+        v-else-if="message.file"
         :file="message.file"
         :is-own-message="isOwnMessage"
         class="mb-2"
@@ -69,4 +101,12 @@ const formattedTime = computed(() => {
       </p>
     </div>
   </div>
+
+  <!-- Lightbox for viewing images -->
+  <ImageLightbox
+    v-if="lightboxOpen && imageFiles.length > 0"
+    :files="imageFiles"
+    :initial-index="lightboxIndex"
+    @close="closeLightbox"
+  />
 </template>
