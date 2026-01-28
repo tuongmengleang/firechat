@@ -1,5 +1,5 @@
 import { ref, computed, onUnmounted } from 'vue'
-import { uploadToS3, type UploadProgress } from '@/config/s3'
+import { uploadToCloudinary, type UploadProgress } from '@/config/cloudinary'
 import type { VoiceAttachment } from '@/types/chat'
 import { MAX_VOICE_DURATION, WAVEFORM_SAMPLES } from '@/types/chat'
 import RecordRTC, { StereoAudioRecorder } from 'recordrtc'
@@ -397,15 +397,12 @@ export function useVoiceRecording(roomId: string = 'general') {
         ? audioDuration
         : recordedDuration
 
-      const timestamp = Date.now()
-      // RecordRTC with StereoAudioRecorder outputs WAV
-      const extension = 'wav'
-      const key = `chatRooms/${roomId}/${username}/voice_${timestamp}.${extension}`
+      const folder = `firechat/${roomId}/${username}/voice`
 
-      const result = await uploadToS3(
+      const result = await uploadToCloudinary(
         audioBlob,
-        key,
-        'audio/wav',
+        folder,
+        'raw',
         (progress: UploadProgress) => {
           if (!isUploadCanceled) {
             recordingState.value.uploadProgress = progress.percentage

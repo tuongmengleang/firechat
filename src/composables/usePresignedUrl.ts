@@ -1,46 +1,23 @@
 import { ref, watch, onUnmounted } from 'vue'
-import { getPresignedDownloadUrl, extractKeyFromUrl } from '@/config/s3'
-
-interface CacheEntry {
-  url: string
-  expiresAt: number
-}
-
-// Global cache for presigned URLs (shared across components)
-const urlCache = new Map<string, CacheEntry>()
-
-// Cache duration: 50 minutes (presigned URLs expire in 1 hour)
-const CACHE_DURATION_MS = 50 * 60 * 1000
+import { isCloudinaryUrl } from '@/config/cloudinary'
 
 /**
- * Get a presigned URL with caching
+ * Resolve a media URL - Cloudinary URLs are already public,
+ * so we just return them as-is
  */
-async function getCachedPresignedUrl(originalUrl: string): Promise<string> {
-  const now = Date.now()
-  const cached = urlCache.get(originalUrl)
-
-  if (cached && cached.expiresAt > now) {
-    return cached.url
-  }
-
-  const key = extractKeyFromUrl(originalUrl)
-  if (!key) {
-    // If it's not an S3 URL, return as-is
+async function resolveMediaUrl(originalUrl: string): Promise<string> {
+  // Cloudinary URLs are already public and don't need presigning
+  if (isCloudinaryUrl(originalUrl)) {
     return originalUrl
   }
 
-  const presignedUrl = await getPresignedDownloadUrl(key)
-
-  urlCache.set(originalUrl, {
-    url: presignedUrl,
-    expiresAt: now + CACHE_DURATION_MS,
-  })
-
-  return presignedUrl
+  // For any other URLs, return as-is
+  return originalUrl
 }
 
 /**
- * Composable for resolving S3 URLs to presigned URLs
+ * Composable for resolving media URLs
+ * Cloudinary URLs are already public and load instantly
  */
 export function usePresignedUrl(originalUrl: () => string) {
   const resolvedUrl = ref<string>('')
@@ -61,14 +38,14 @@ export function usePresignedUrl(originalUrl: () => string) {
     error.value = null
 
     try {
-      const presigned = await getCachedPresignedUrl(url)
+      const resolved = await resolveMediaUrl(url)
       if (isMounted) {
-        resolvedUrl.value = presigned
+        resolvedUrl.value = resolved
         isLoading.value = false
       }
     } catch (err) {
       if (isMounted) {
-        console.error('Failed to get presigned URL:', err)
+        console.error('Failed to resolve URL:', err)
         error.value = 'Failed to load media'
         // Fallback to original URL
         resolvedUrl.value = url
@@ -89,21 +66,4 @@ export function usePresignedUrl(originalUrl: () => string) {
     isLoading,
     error,
   }
-}
-
-/**
- * Clear expired entries from the cache
- */
-export function cleanupUrlCache(): void {
-  const now = Date.now()
-  for (const [key, entry] of urlCache.entries()) {
-    if (entry.expiresAt <= now) {
-      urlCache.delete(key)
-    }
-  }
-}
-
-// Periodically clean up expired cache entries
-if (typeof window !== 'undefined') {
-  setInterval(cleanupUrlCache, 5 * 60 * 1000) // Every 5 minutes
 }

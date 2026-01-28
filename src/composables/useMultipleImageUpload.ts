@@ -1,5 +1,5 @@
 import { ref, computed } from 'vue'
-import { uploadToS3, type UploadProgress } from '@/config/s3'
+import { uploadToCloudinary, type UploadProgress } from '@/config/cloudinary'
 import type { FileAttachment, ImagePreview, MultipleUploadState } from '@/types/chat'
 import {
   ALLOWED_IMAGE_TYPES,
@@ -172,9 +172,7 @@ export function useMultipleImageUpload(roomId: string = 'general') {
     preview: ImagePreview,
     username: string
   ): Promise<FileAttachment | null> => {
-    const timestamp = Date.now()
-    const sanitizedName = preview.file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
-    const key = `chatRooms/${roomId}/${username}/${timestamp}_${sanitizedName}`
+    const folder = `firechat/${roomId}/${username}`
 
     preview.status = 'uploading'
     preview.progress = 0
@@ -183,10 +181,10 @@ export function useMultipleImageUpload(roomId: string = 'general') {
     abortControllers.set(preview.id, controller)
 
     try {
-      const result = await uploadToS3(
+      const result = await uploadToCloudinary(
         preview.file,
-        key,
-        preview.file.type,
+        folder,
+        'image',
         (progress: UploadProgress) => {
           if (!isCanceled) {
             preview.progress = progress.percentage
