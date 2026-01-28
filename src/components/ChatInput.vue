@@ -160,7 +160,7 @@ const handleAddMoreImages = (): void => {
 
 <template>
   <div
-    class="w-full bg-white border-t border-slate-200 transition-colors"
+    class="max-w-3xl mx-auto"
     :class="{ 'bg-indigo-50 border-indigo-200': isDragOver }"
     @dragover="handleDragOver"
     @dragleave="handleDragLeave"
@@ -270,7 +270,10 @@ const handleAddMoreImages = (): void => {
         :disabled="isUploading"
         placeholder="Type a message..."
         rows="1"
-        class="flex-1 resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm sm:text-base outline-none transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 max-h-[120px] disabled:opacity-50"
+        :class="[
+            'flex-1 resize-none rounded-2xl border px-4 py-3 text-sm sm:text-base outline-none transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 max-h-[120px] disabled:opacity-50',
+            isDragOver ? 'bg-indigo-50 border-indigo-200' : 'bg-slate-50 border-slate-200'
+        ]"
       />
       <button
         type="submit"

@@ -246,7 +246,7 @@ watch(
     </Transition>
 
     <!-- Input Area -->
-    <div class="flex-shrink-0 mx-auto w-full">
+    <div class="flex-shrink-0 mx-auto w-full bg-white border-t border-slate-200 transition-colors">
       <ChatInput
         :file-preview="filePreview"
         :upload-state="uploadState"
