@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { uploadToS3, type UploadProgress } from '@/config/s3'
+import { uploadToCloudinary, type UploadProgress } from '@/config/cloudinary'
 import type { FileAttachment, FilePreview, UploadState, FileType } from '@/types/chat'
 import {
   ALLOWED_IMAGE_TYPES,
@@ -81,9 +81,8 @@ export function useFileUpload(roomId: string = 'general') {
     if (!filePreview.value) return null
 
     const { file, type } = filePreview.value
-    const timestamp = Date.now()
-    const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
-    const key = `chatRooms/${roomId}/${username}/${timestamp}_${sanitizedName}`
+    const folder = `firechat/${roomId}/${username}`
+    const resourceType = type === 'video' ? 'video' : 'image'
 
     uploadState.value = {
       isUploading: true,
@@ -95,10 +94,10 @@ export function useFileUpload(roomId: string = 'general') {
     abortController = new AbortController()
 
     try {
-      const result = await uploadToS3(
+      const result = await uploadToCloudinary(
         file,
-        key,
-        file.type,
+        folder,
+        resourceType,
         (progress: UploadProgress) => {
           if (!isCanceled) {
             uploadState.value.progress = progress.percentage
